@@ -16,6 +16,10 @@ makeMyString x with (strM x)
   makeMyString "" | StrNil = myEmptyString
   makeMyString (strCons s ss) | (StrCons s ss) = s :> (makeMyString ss)
 
+makeString : MyString -> String
+makeString myEmptyString = ""
+makeString (c :> mstr) = "c" ++ (makeString mstr)
+
 -- ||| Tail r s means r is a tail of s.
 data Tail : MyString -> MyString -> Type where
   selfTail : (s : MyString) -> Tail s s
@@ -69,6 +73,9 @@ runStringParser (stringParser f) = f
 parseValue : a -> StringParser a
 parseValue x = stringParser (\s => Right (parse x s (selfTail s)))
 
+parseEmpty : StringParser a
+parseEmpty = stringParser (\s => Left "empty")
+
 instance Functor StringParser where
   map f parser = stringParser $ \str =>
     case runStringParser parser str of
@@ -83,6 +90,13 @@ instance Applicative StringParser where
       Right (parse f s t) => case runStringParser parser2 s of
                                Left noParse => Left noParse
                                Right (parse x s' t') => Right (parse (f x) s' (transitiveTail t' t))
+
+instance Alternative StringParser where
+  empty = parseEmpty
+  parser1 <|> parser2 = stringParser $ \str =>
+    case runStringParser parser1 str of
+      Right p => Right p
+      Left noParse => runStringParser parser2 str
 
 instance Monad StringParser where
   parser1 >>= k = stringParser $ \str =>
@@ -109,3 +123,67 @@ parseDigit = stringParser $ \str =>
     c :> theRest => if isDigit c
                     then Right (parse c theRest (stillTail (selfTail theRest)))
                     else Left "digit : no parse"
+
+parseMyString : MyString -> StringParser MyString
+parseMyString myEmptyString = pure myEmptyString
+parseMyString (c :> mstr) = (map (:>) (parseChar c)) <$> (parseMyString mstr)
+
+parseString : String -> StringParser String
+parseString str = map (makeString) (parseMyString (makeMyString str))
+
+data Formula : Type where
+  terminal : Bool -> Formula
+  conjunction : Formula -> Formula -> Formula
+  disjunction : Formula -> Formula -> Formula
+
+instance Show Formula where
+  show (terminal False) = "F"
+  show (terminal True) = "T"
+  show (conjunction f1 f2) = "(" ++ show f1 ++ " ^ " ++ show f2 ++ ")"
+  show (disjunction f1 f2) = "(" ++ show f1 ++ " v " ++ show f2 ++ ")"
+
+evalFormula : Formula -> Bool
+evalFormula (terminal b) = b
+evalFormula (conjunction f1 f2) = evalFormula f1 && evalFormula f2
+evalFormula (disjunction f1 f2) = evalFormula f1 || evalFormula f2
+
+parseBool : StringParser Bool
+parseBool = map (\_ => True) (parseString "true") <|> map (\_ => False) (parseString "false")
+parseTerminal : StringParser Formula
+parseTerminal = map terminal parseBool
+
+-- Prefix parsing of formulas.
+mutual
+  parseConjunction : StringParser Formula
+  parseConjunction = do
+    parseChar '('
+    parseChar '^'
+    parseChar ' '
+    f1 <- parseFormula
+    parseChar ' '
+    f2 <- parseFormula
+    parseChar ')'
+    return $ conjunction f1 f2
+  
+  parseDisjunction : StringParser Formula
+  parseDisjunction = do
+    parseChar '('
+    parseChar 'v'
+    parseChar ' '
+    f1 <- parseFormula
+    parseChar ' '
+    f2 <- parseFormula
+    parseChar ')'
+    return $ disjunction f1 f2
+  
+  parseFormula : StringParser Formula
+  parseFormula = parseDisjunction <|> parseConjunction <|> parseTerminal
+
+-- No Functor instance for Either a???
+eitherMap : (a -> b) -> Either c a -> Either c b
+eitherMap f (Right x) = Right (f x)
+eitherMap f (Left x) = Left x
+
+checkParse : StringParser a -> String -> Either NoParse a
+checkParse parser s = case runStringParser parser (makeMyString s) of
+                        x => eitherMap exitParse x
