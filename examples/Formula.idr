@@ -20,32 +20,53 @@ parseBool : StringParser Bool
 parseBool = (string "true" $> pure True) <|> (string "false" $> pure False)
 
 parseTerminal : StringParser Formula
-parseTerminal = map Terminal parseBool
+parseTerminal = map Terminal (parseBool <|> parens parseBool)
 
 -- Prefix parsing of formulas.
 mutual
-  parseConjunction : StringParser Formula
-  parseConjunction = parens $ do
+  parseConjunctionPrefix : StringParser Formula
+  parseConjunctionPrefix = parens $ do
     char '^'
     whitespace
-    f1 <- parseFormula
+    f1 <- parseFormulaPrefix
     whitespace
-    f2 <- parseFormula
+    f2 <- parseFormulaPrefix
     return $ Conjunction f1 f2
   
-  parseDisjunction : StringParser Formula
-  parseDisjunction = parens $ do
+  parseDisjunctionPrefix : StringParser Formula
+  parseDisjunctionPrefix = parens $ do
     char 'v'
     whitespace
-    f1 <- parseFormula
+    f1 <- parseFormulaPrefix
     whitespace
-    f2 <- parseFormula
+    f2 <- parseFormulaPrefix
     return $ Disjunction f1 f2
   
-  parseFormula : StringParser Formula
-  parseFormula = parseDisjunction <|> parseConjunction <|> parseTerminal
+  parseFormulaPrefix : StringParser Formula
+  parseFormulaPrefix =
+        parseDisjunctionPrefix
+    <|> parseConjunctionPrefix
+    <|> parseTerminal
 
--- No Functor instance for Either a???
+-- Infix parsing of formulas.
+mutual
+  parseConjunctionInfix : Formula -> StringParser Formula
+  parseConjunctionInfix f1 = map (Conjunction f1) (
+      whitespace $> char '^' $> whitespace $> parseFormulaInfix
+    )
+
+  parseDisjunctionInfix : Formula -> StringParser Formula
+  parseDisjunctionInfix f1 = map (Disjunction f1) (
+      whitespace $> char 'v' $> whitespace $> parseFormulaInfix
+    )
+
+  parseFormulaInfix : StringParser Formula
+  parseFormulaInfix = do
+    t <- parens parseFormulaInfix <|> parseTerminal
+    parseConjunctionInfix t <|> parseDisjunctionInfix t <|> pure t
+
+-- Functor instance for Either a doesn't work for me; complains of incomplete
+-- term.
 eitherMap : (a -> b) -> Either c a -> Either c b
 eitherMap f (Right x) = Right (f x)
 eitherMap f (Left x) = Left x
