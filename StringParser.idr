@@ -22,18 +22,27 @@ transitiveTail (StillTail x) (StillTail z) = StillTail (transitiveTail (StillTai
 
 data NoParse = MkNoParse String
 
--- ||| A Parse x s means an x was parsed from s, and holds some MyString which
---     is a Tail of s.
+-- ||| A Parse x s means an x was parsed from s, and holds some List Char which
+-- ||| is a Tail of s.
+-- ||| @ a is the type of the parsed result.
+-- ||| @ s is the List Char from which this was parsed.
 data Parse : (a : Type) -> (s : List Char) -> Type where
-  parse : (x : a) -> (r : List Char) -> Tail r s -> Parse a s
+  -- ||| A parse result.
+  -- ||| @ x the parsed value
+  -- ||| @ r the remaining input
+  -- ||| @ isTail proof that remaining input is tail of input
+  parseResult : (x : a) -> (r : List Char) -> (isTail : Tail r s) -> Parse a s
 
+-- ||| Get the parsed value from a Parse.
 exitParse : Parse a s -> a
-exitParse (parse x _ _) = x
+exitParse (parseResult x _ _) = x
 
 -- ||| Definition of a StringParser with a static guarantee that its values can
---     only consume (or leave unchanged) their inputs, they cannot make them
---     grow.
+-- ||| only consume (or leave unchanged) their inputs, they cannot make them
+-- ||| grow.
 data StringParser : (a : Type) -> Type where
+  -- ||| A string parser
+  -- ||| @ s input List Char
   stringParser : ((s : List Char) -> Either NoParse (Parse a s)) -> StringParser a
 
 runStringParser : StringParser a -> (s : List Char) -> Either NoParse (Parse a s)
@@ -41,7 +50,7 @@ runStringParser (stringParser f) = f
 
 -- ||| Monadic return, applicative pure: give a fixed value and consume no input.
 parseValue : a -> StringParser a
-parseValue x = stringParser (\s => Right (parse x s (SelfTail s)))
+parseValue x = stringParser (\s => Right (parseResult x s (SelfTail s)))
 
 -- ||| Alternative empty: always a NoParse.
 parseEmpty : StringParser a
@@ -51,16 +60,16 @@ instance Functor StringParser where
   map f parser = stringParser $ \str =>
     case runStringParser parser str of
       Left noParse => Left noParse
-      Right (parse x s t) => Right (parse (f x) s t)
+      Right (parseResult x s t) => Right (parseResult (f x) s t)
 
 instance Applicative StringParser where
   pure = parseValue
   parser1 <$> parser2 = stringParser $ \str =>
     case runStringParser parser1 str of
       Left noParse => Left noParse
-      Right (parse f s t) => case runStringParser parser2 s of
+      Right (parseResult f s t) => case runStringParser parser2 s of
                                Left noParse => Left noParse
-                               Right (parse x s' t') => Right (parse (f x) s' (transitiveTail t' t))
+                               Right (parseResult x s' t') => Right (parseResult (f x) s' (transitiveTail t' t))
 
 instance Alternative StringParser where
   empty = parseEmpty
@@ -75,9 +84,9 @@ instance Monad StringParser where
       Left noParse => Left noParse
       -- Can't just do this, because we have to supply further proof of Tail.
       --Right (parse x s t) => runStringParser (k x) s
-      Right (parse x s t) => case runStringParser (k x) s of
+      Right (parseResult x s t) => case runStringParser (k x) s of
                                Left noParse => Left noParse
-                               Right (parse x s' t') => Right (parse x s' (transitiveTail t' t))
+                               Right (parseResult x s' t') => Right (parseResult x s' (transitiveTail t' t))
 
 many1 : StringParser a -> StringParser (List a)
 many1 parser = map (::) parser <$> (many1 parser <|> pure [])
@@ -118,7 +127,7 @@ choice (f :: fs) = f <|> choice fs
 endOfInput : StringParser ()
 endOfInput = stringParser $ \str =>
   case str of
-    [] => Right (parse () [] (SelfTail []))
+    [] => Right (parseResult () [] (SelfTail []))
     _ => Left (MkNoParse "end : no parse")
 
 -- ||| This parser always parses; gives an indication of whether the end of
@@ -131,7 +140,7 @@ char c = stringParser $ \str =>
   case str of
     [] => Left (MkNoParse "char : no parse")
     c' :: theRest => if c == c'
-                     then Right (parse c' theRest (StillTail (SelfTail theRest)))
+                     then Right (parseResult c' theRest (StillTail (SelfTail theRest)))
                      else Left (MkNoParse "char : no parse")
 
 digit : StringParser Char
@@ -139,7 +148,7 @@ digit = stringParser $ \str =>
   case str of
     [] => Left (MkNoParse "digit : no parse")
     c :: theRest => if isDigit c
-                    then Right (parse c theRest (StillTail (SelfTail theRest)))
+                    then Right (parseResult c theRest (StillTail (SelfTail theRest)))
                     else Left (MkNoParse "digit : no parse")
 
 -- ||| Consume zero or more space, newline, tab, and carriage return.
