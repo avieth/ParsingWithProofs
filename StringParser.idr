@@ -148,7 +148,7 @@ whitespace = many (choice [char ' ', char '\n', char '\t', char '\r']) $> pure (
 
 symbol : List Char -> StringParser (List Char)
 symbol [] = pure []
-symbol (c :: cs) = map (::) (char 'c') <$> symbol cs
+symbol (c :: cs) = map (::) (char c) <$> symbol cs
 
 string : String -> StringParser (List Char)
 string = symbol . unpack
