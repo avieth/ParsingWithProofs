@@ -144,7 +144,7 @@ digit = stringParser $ \str =>
 
 -- ||| Consume zero or more space, newline, tab, and carriage return.
 whitespace : StringParser ()
-whitespace = choice [char ' ', char '\n', char '\t', char '\r'] $> pure ()
+whitespace = many (choice [char ' ', char '\n', char '\t', char '\r']) $> pure ()
 
 symbol : List Char -> StringParser (List Char)
 symbol [] = pure []
