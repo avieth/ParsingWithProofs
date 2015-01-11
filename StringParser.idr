@@ -2,12 +2,12 @@ module StringParser
 
 import Prelude.Chars
 
--- ||| Tail r s means r is a tail of s.
+||| Tail r s means r is a tail of s.
 data Tail : List Char -> List Char -> Type where
   SelfTail : (s : List Char) -> Tail s s
   StillTail : Tail s q -> Tail s (r :: q)
 
--- ||| Theorem: Tail is transitive.
+||| Theorem: Tail is transitive.
 transitiveTail : Tail q r -> Tail r s -> Tail q s
 -- In this case, q = r = s so we can get away with SelfTail.
 transitiveTail (SelfTail q) (SelfTail q) = SelfTail q
@@ -22,37 +22,37 @@ transitiveTail (StillTail x) (StillTail z) = StillTail (transitiveTail (StillTai
 
 data NoParse = MkNoParse String
 
--- ||| A Parse x s means an x was parsed from s, and holds some List Char which
--- ||| is a Tail of s.
--- ||| @ a is the type of the parsed result.
--- ||| @ s is the List Char from which this was parsed.
+||| A Parse x s means an x was parsed from s, and holds some List Char which
+||| is a Tail of s.
+||| @ a is the type of the parsed result.
+||| @ s is the List Char from which this was parsed.
 data Parse : (a : Type) -> (s : List Char) -> Type where
-  -- ||| A parse result.
-  -- ||| @ x the parsed value
-  -- ||| @ r the remaining input
-  -- ||| @ isTail proof that remaining input is tail of input
+  ||| A parse result.
+  ||| @ x the parsed value
+  ||| @ r the remaining input
+  ||| @ isTail proof that remaining input is tail of input
   parseResult : (x : a) -> (r : List Char) -> (isTail : Tail r s) -> Parse a s
 
--- ||| Get the parsed value from a Parse.
+||| Get the parsed value from a Parse.
 exitParse : Parse a s -> a
 exitParse (parseResult x _ _) = x
 
--- ||| Definition of a StringParser with a static guarantee that its values can
--- ||| only consume (or leave unchanged) their inputs, they cannot make them
--- ||| grow.
+||| Definition of a StringParser with a static guarantee that its values can
+||| only consume (or leave unchanged) their inputs, they cannot make them
+||| grow.
 data StringParser : (a : Type) -> Type where
-  -- ||| A string parser
-  -- ||| @ s input List Char
-  stringParser : ((s : List Char) -> Either NoParse (Parse a s)) -> StringParser a
+  ||| A string parser
+  ||| @ f input List Char
+  stringParser : (f : ((s : List Char) -> Either NoParse (Parse a s))) -> StringParser a
 
 runStringParser : StringParser a -> (s : List Char) -> Either NoParse (Parse a s)
 runStringParser (stringParser f) = f
 
--- ||| Monadic return, applicative pure: give a fixed value and consume no input.
+||| Monadic return, applicative pure: give a fixed value and consume no input.
 parseValue : a -> StringParser a
 parseValue x = stringParser (\s => Right (parseResult x s (SelfTail s)))
 
--- ||| Alternative empty: always a NoParse.
+||| Alternative empty: always a NoParse.
 parseEmpty : StringParser a
 parseEmpty = stringParser (\s => Left (MkNoParse "empty"))
 
@@ -98,12 +98,12 @@ count : (n : Nat) -> StringParser a -> StringParser (Vect n a)
 count Z _ = pure []
 count (S k) parser = map (::) parser <$> count k parser
 
--- ||| Parse the first zero or more times until the second succeeds.
+||| Parse the first zero or more times until the second succeeds.
 manyTill : StringParser a -> StringParser b -> StringParser (List a)
 manyTill parserA parserB = (parserB $> pure []) <|> (map (::) parserA <$> manyTill parserA parserB)
 
--- ||| Parse one or more occurrences of the first parser, separated by the
---     second parser.
+||| Parse one or more occurrences of the first parser, separated by the
+||| second parser.
 sepBy1 : StringParser a -> StringParser sep -> StringParser (List a)
 sepBy1 parserA parserSep = map (::) parserA <$> many (parserSep $> parserA)
 
@@ -151,7 +151,7 @@ digit = stringParser $ \str =>
                     then Right (parseResult c theRest (StillTail (SelfTail theRest)))
                     else Left (MkNoParse "digit : no parse")
 
--- ||| Consume zero or more space, newline, tab, and carriage return.
+||| Consume zero or more space, newline, tab, and carriage return.
 whitespace : StringParser ()
 whitespace = many (choice [char ' ', char '\n', char '\t', char '\r']) $> pure ()
 
