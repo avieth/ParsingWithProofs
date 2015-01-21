@@ -48,6 +48,18 @@ data StringParser : (a : Type) -> Type where
 runStringParser : StringParser a -> (s : List Char) -> Either NoParse (Parse a s)
 runStringParser (stringParser f) = f
 
+parsed : Either NoParse (Parse a s) -> Bool
+parsed (Left _) = False
+parsed (Right _) = True
+
+match : Eq a => a -> Either NoParse (Parse a s) -> Bool
+match x (Left _) = False
+match x (Right p) = x == (exitParse p)
+
+parsedValue : Either NoParse (Parse a s) -> Maybe a
+parsedValue (Left _) = Nothing
+parsedValue (Right p) = Just (exitParse p)
+
 ||| Monadic return, applicative pure: give a fixed value and consume no input.
 parseValue : a -> StringParser a
 parseValue x = stringParser (\s => Right (parseResult x s (SelfTail s)))
