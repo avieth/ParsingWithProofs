@@ -99,3 +99,15 @@ leftInverse Manitoba = Refl
 leftInverse Saskatchewan = Refl
 leftInverse Alberta = Refl
 leftInverse BritishColumbia = Refl
+
+||| Proof that values of type a can be serialized and deserialized in a
+||| reasonable way.
+data Serializable : a -> Type where
+  MkSerializable
+    :  (serialize : a -> List Char)
+    -> (deserialize : List Char -> Maybe a)
+    -> (leftInverse : ((x : a) -> deserialize (serialize x) = Just x))
+    -> Serializable a
+
+serializableProvince : Serializable Province
+serializableProvince = MkSerializable serialize deserialize leftInverse
