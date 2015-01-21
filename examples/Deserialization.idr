@@ -73,13 +73,15 @@ parseProvince =
 
 -- Here is our seralize/deserialize combo! They're really not of any use to us
 -- unless we prove that they actually stand up to their names.
+-- Note that we use parseProvince <$ endOfInput because the deserializer should
+-- consume the entire input string.
 serialize : Province -> List Char
 serialize = showProvince
 
 deserialize : List Char -> Maybe Province
-deserialize cs = parsedValue (runStringParser parseProvince cs)
+deserialize cs = parsedValue (runStringParser (parseProvince <$ endOfInput) cs)
 -- Oddly enough,
---   deserialize = parsedValue . runStringParser parseProvince
+--   deserialize = parsedValue . runStringParser (parseProvince <$ endOfInput)
 -- doesn't pass the type checker.
 
 ||| Theorem: for any Province p, showProvince p always parses to p under
